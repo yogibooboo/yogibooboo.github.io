@@ -2481,7 +2481,8 @@ calcolapuntitris: function(gruppo){
 		var finito=false;   
         if (this.campiavversario[avv].carte.length==0){
         	finito=true;
-        	
+        	this.cartescoperte=true;
+
         	var salvapunti=this.totalegiocatore;
         	
        		var vintotorneo=this.calcolatotali();
