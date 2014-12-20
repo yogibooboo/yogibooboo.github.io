@@ -16,13 +16,13 @@ Array.prototype.togli =function(elemento){
 }
 
 
-var isOpera = !!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0;
-    // Opera 8.0+ (UA detection to detect Blink/v8-powered Opera)
-var isFirefox = typeof InstallTrigger !== 'undefined';   // Firefox 1.0+
-var isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
+//var isOpera = !!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0;
+//    // Opera 8.0+ (UA detection to detect Blink/v8-powered Opera)
+//var isFirefox = typeof InstallTrigger !== 'undefined';   // Firefox 1.0+
+//var isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
     // At least Safari 3+: "[object HTMLElementConstructor]"
-var isChrome = !!window.chrome && !isOpera;              // Chrome 1+
-var isIE = /*@cc_on!@*/false || !!document.documentMode; // At least IE6
+//var isChrome = !!window.chrome && !isOpera;              // Chrome 1+
+//var isIE = /*@cc_on!@*/false || !!document.documentMode; // At least IE6
 
 
 $(window).resize(function () {
@@ -114,6 +114,7 @@ var scala = {
     	this.inizializzazioni();
         this.creamazzi();
         this.shuffle();
+        this.shuffle();   //provo a mescolare 2 volte
         this.createDeckElements();
         this.givecards();
         return;
@@ -584,7 +585,7 @@ var scala = {
 
         
         $("#pulsante2").bind("click", function(ev) {
-            return  scala.undo();
+            return  scala.multiundo();
         });
         $("#scoperte").bind("click", function(ev) {
             return  scala.scoperte();
@@ -1784,6 +1785,12 @@ var scala = {
 	},
 
 
+	multiundo:function(){
+		if (this.pescato) this.undo();
+		else while(!this.pescato) {	this.undo();}
+    },
+
+
 
 	undo:function(){
 		this.jollymodificabili=[];
@@ -1961,6 +1968,69 @@ calcolapuntitris: function(gruppo){
 		return;
 	},
 
+	attaccabiliconjolly:function(avv){
+
+		var checkattaccabili=(function(contx,carta){ 
+
+			var salvacarta =(function(indice,flag){
+				var tempor={};
+				tempor.carta=carta;
+				tempor.cont=contx;
+				tempor.indice=indice;
+				tempor.cartatris=tris[0];
+				tempor.messeprima=flag;
+				tempor.primonumero=scala.trisdata.primonumero;
+				scala.carteattaccabili.push(tempor);
+				return true;
+			});
+			conten=contx.carte;
+			if (carta.numero>49) return true; //non esamina il jolly e non lo fa esaminare al buffer successivo (ret true)
+			var ncarte=conten.length;
+			var tris=[];
+			if (ncarte==0) return false;
+			var maxtris=conten[ncarte-1].ntris;
+			for (var j=0;j<=maxtris;j++){  //esamino un tris alla volta
+				tris=[];
+				var ultimacartatris=0;
+				for (var k=0;k<ncarte;k++) { //estraggo il tris
+					if (conten[k].ntris==j) {
+						tris.push(conten[k]);
+						ultimacartatris=k;
+					}
+				} 
+				scala.checktris(tris,SORTED);  //mi serve per calcolare trisdata
+				if (scala.trisdata.tipotris==TRIS) continue;
+				else { //era una scala
+					if (scala.trisdata.semescala!=carta.seme) continue;
+					if (scala.trisdata.primonumero==carta.numero+2) return salvacarta(ultimacartatris+1-tris.length,true);
+					var prossimacarta =scala.trisdata.primonumero+tris.length+1;
+					if (prossimacarta==15) continue;
+					if (prossimacarta==14)prossimacarta=1;
+					if (prossimacarta==carta.numero) return salvacarta(ultimacartatris+1,false);
+				}
+			}
+			return false;
+		}) 
+
+		this.carteattaccabili=[];
+		var cont=this.campiavversario[avv].carte;
+		this.ordinacarte(this.campiavversario[avv]);
+		
+			
+		for (var i=0;i<cont.length;i++){
+			//se è uguale alla carta precedente la skippa
+			if ((i>0)&&(cont[i].shortName==cont[i-1].shortName)) continue;
+			if (!checkattaccabili(this.trisgiocatore,cont[i])) {
+				for (var j=0;j<scala.numeroavversari;j++) {
+					if (checkattaccabili(this.campitrisavversario[j],cont[i])) break;
+				}
+			}
+
+			
+		}
+		return;
+	},
+
 	
 	
 	//mette in jolly recuperabili i jolly in campo che si possono recuperare con le carte del gruppo (cont)
@@ -2066,7 +2136,7 @@ calcolapuntitris: function(gruppo){
 						if ((differenza==1)&&(cont[i].numero!=1)) {
 							var puntitris =cont[i].numero*3+3;
 							if (cont[i].numero==9) puntitris=29;
-							if (cont[i].numero>10) puntitris=30;
+							if (cont[i].numero>=10) puntitris=30;
 							if (cont[i].numero==12) puntitris=31;
 							salvacoppia(i,j,SCALA,PUNTICOPPIA,puntitris,2);
 						}
@@ -2180,6 +2250,8 @@ calcolapuntitris: function(gruppo){
 
     apesca:function(avv){
     	this.pushstato();
+   		this.jollydausare=0;
+
         if ((this.campiavversario[avv].carte.length>=3)) {
         	var scarto=this.scarti.carte[this.scarti.carte.length-1];
         	
@@ -2221,30 +2293,31 @@ calcolapuntitris: function(gruppo){
         			return;  
 
 				}
-
-        		if ((!this.f40avversario[avv])&&(this.fscartiprima40)){ //non abbiamo ancora aperto ma c'è l'opzione dipescare dagli scarti senza apertura
-        			//la pesca dagli scarti formerebbe un tris, ma abbiamo i 40 punti?
-       				this.muovicarta(this.scarti,this.campiavversario[avv],"faceDown");   //prova di nascosto
-   					this.cancellapuntietris(avv);
-
-       				this.calcolatrispossibili(avv);
-	   				this.ottimizzatris();
-			   		this.cercacoppie(avv);
-					this.ottimizzacoppie();
-
-       				if (this.verifica40(avv)) {
- 						dascarti.play(); 
-        				this.render(); 
-        				return;
-       				}
-					else {
-						this.popstato(true); //ripesca dallo stack lasciando lo dtack inalterato
-					}
-        		}
-
-
         	}
-        } 
+
+			if ((!this.f40avversario[avv])&&(this.fscartiprima40)){ //non abbiamo ancora aperto ma c'è l'opzione dipescare dagli scarti senza apertura
+				//la pesca dagli scarti formerebbe un tris, ma abbiamo i 40 punti?
+				this.muovicarta(this.scarti,this.campiavversario[avv],"faceDown");   //prova di nascosto
+				this.cancellapuntietris(avv);
+
+
+				this.calcolatrispossibili(avv);
+				this.ottimizzatris();
+				this.cercacoppie(avv);
+				this.ottimizzacoppie();
+
+				if (this.verifica40(avv)) {
+					dascarti.play(); 
+					this.render(); 
+					return;
+				}
+				else {
+					this.popstato(true); //ripesca dallo stack lasciando lo dtack inalterato
+				}
+			}
+
+		} 
+
 
    		pesca.play();
         this.muovicarta(this.mazzo,this.campiavversario[avv],"faceDown");   
@@ -2255,7 +2328,6 @@ calcolapuntitris: function(gruppo){
 
     alavora:function(avv){
    		this.ordinacarte(this.campiavversario[avv]);
-   		this.jollydausare=0;
    		this.cancellapuntietris(avv);
    		if (this.campiavversario[avv].carte.length>3){
     		this.calcolatrispossibili(avv);
@@ -2299,8 +2371,8 @@ calcolapuntitris: function(gruppo){
 
 		var temp;
 		while (this.f40avversario[avv]&&(this.carteattaccabili.length>0)&&(this.campiavversario[avv].carte.length>1)
-		&&!((this.campiavversario[avv].carte.length==4)&&(this.carteattaccabili.length<2))){   //per non incartarsi
-			temp=this.carteattaccabili.pop();
+		&&!((this.campiavversario[avv].carte.length==4)&&(this.carteattaccabili.length<2)&&(this.numeroavversari<3))){   //per non incartarsi, 
+			temp=this.carteattaccabili.pop();													//se  ci sono 3 avversari si incarta
 			temp.carta.faceUp=true;
 			this.aggiungitris(temp.cont,temp.indice,temp.carta,temp.cartatris,ESEGUI);
 			this.calcolacarteattaccabili(avv);
@@ -2334,14 +2406,48 @@ calcolapuntitris: function(gruppo){
 				this.cercacoppie(avv);
 				this.ottimizzacoppie();
 			}
-			//se sono rimaste due o tre o quattro carte e solo una di queste non è un jolly attacca il jolly da qualche parte
+
+   		this.attaccabiliconjolly(avv);
+		var stringone="attaccabiliconjolly"+avv+": ";
+		for (var i=0;i<this.carteattaccabili.length;i++){
+			stringone+=(this.carteattaccabili[i].carta.shortName+ ", ")
+		}
+		log(stringone);
+
+		var temp;
+		//se ci sono carte attaccabili con jolly e ho meno di 7 carte 
+		//e almeno due carte che non siano jolly attacco le carte attacabili con jolly
+		var lung=this.campiavversario[avv].carte.length;
+		while (this.f40avversario[avv]&&(this.carteattaccabili.length>0)&&(lung>2)&&(lung<7)
+		&&(this.campiavversario[avv].carte[lung-1].numero>49)&&(this.campiavversario[avv].carte[1].numero<49)){    
+			temp=this.carteattaccabili.pop();
+			temp.carta.faceUp=true;
+			this.aggiungitris(temp.cont,temp.indice,temp.carta,temp.cartatris,ESEGUI);
+			//ora mette il jolly
+			scala.trisdata.semescala=temp.cartatris.seme;  //serve a aggiungitris per dare il seme al jolly
+			scala.trisdata.primonumero=temp.primonumero;
+ 			if (!temp.messeprima) this.aggiungitris(temp.cont,temp.indice,this.campiavversario[avv].carte[lung-2],temp.cartatris,ESEGUI);
+			else {
+				scala.trisdata.primonumero-=2;
+				this.aggiungitris(temp.cont,temp.indice+1,this.campiavversario[avv].carte[lung-2],temp.cartatris,ESEGUI);
+			}
+			//this.attaccabiliconjolly(avv); non dovrebbe servire
+			lung=this.campiavversario[avv].carte.length;
+		}
+
+
+			//se sono rimaste due o tre o quattro carte e solo una di queste non è un jolly 
+			//oppure se ci sono 3 carte e un jolly attacca il jolly da qualche parte
 			this.ordinacarte(this.campiavversario[avv]);
-			while ((this.campiavversario[avv].carte.length<5)&&(this.campiavversario[avv].carte.length>1)&&(this.campiavversario[avv].carte[1].numero>49)){
-				if (!this.attaccajolly(this.trisgiocatore,this.campiavversario[avv].carte[1])){
+			var lung=this.campiavversario[avv].carte.length;
+			while ((lung<5)&&(lung>1)&&(this.campiavversario[avv].carte[1].numero>49)||
+			(lung==3)&&(this.campiavversario[avv].carte[2].numero>49)){
+				if (!this.attaccajolly(this.trisgiocatore,this.campiavversario[avv].carte[lung-1])){
 					for (var j=0;j<scala.numeroavversari;j++) {
-						if (this.attaccajolly(this.campitrisavversario[j],this.campiavversario[avv].carte[1])) break;
+						if (this.attaccajolly(this.campitrisavversario[j],this.campiavversario[avv].carte[lung-1])) break;
 					}
 				}
+				lung=this.campiavversario[avv].carte.length;
 
 			}
 			//se ci sono quattro carte e due jolly forma il tris con le ultime tre carte
@@ -2350,6 +2456,13 @@ calcolapuntitris: function(gruppo){
 				for (var i=1;i<4;i++) tris.push(this.campiavversario[avv].carte[i]);
 				this.scartatris(tris);
 			}
+    		//se ci sono cinque carte e due jolly forma il tris con le ultime tre carte
+			if ((this.campiavversario[avv].carte.length==5)&&(this.campiavversario[avv].carte[3].numero>49)){
+				var tris=[];
+				for (var i=2;i<5;i++) tris.push(this.campiavversario[avv].carte[i]);
+				this.scartatris(tris);
+			}
+
 			//se ci sono due carte uguali aggiunge alla seconda un quarto dei punti della prima
 			var carta; 
 			var nomeprecedente=this.campiavversario[avv].carte[0].shortName;
@@ -2487,7 +2600,7 @@ calcolapuntitris: function(gruppo){
         	
        		var vintotorneo=this.calcolatotali();
 			
-			if ((this.totalegiocatore>this.totalelimite)&&(salvapunti<this.totalelimite)){
+			if ((this.totalegiocatore>=this.totalelimite)&&(salvapunti<this.totalelimite)){
 				window.setTimeout(function(){thunder.play();scala.mydialog("haipersotorneo",function(){scala.azzeratotale();scala.nuovo()},scala.nuovo);},1000);
 			} 
 			else {
