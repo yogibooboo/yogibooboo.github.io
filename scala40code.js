@@ -2358,6 +2358,8 @@ calcolapuntitris: function(gruppo){
    		while (this.f40avversario[avv]&&(this.jollyrecuperabili.length>0)){
    			coppia=this.jollyrecuperabili.pop();
    			this.scambiacarte(coppia["cartagruppo"],coppia["jolly"],ESEGUI);
+   			this.cercajollyrecuperabili(this.campiavversario[avv]);
+
    		}
    		this.calcolacarteattaccabili(avv);
 		var stringone="carte attaccabili"+avv+": ";
